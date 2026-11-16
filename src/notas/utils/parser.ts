@@ -333,10 +333,18 @@ const calculateTableData = (
   balances: AccountingBalance[],
   rules: { label: string; matcher: (b: AccountingBalance) => boolean }[],
   currentPeriod: string,
-  previousPeriod: string
+  previousPeriod: string,
+  exclusive = false
 ): TableData => {
+  // Em modo exclusivo, cada conta entra somente na primeira linha que a reconhece (evita dupla contagem no total).
+  const claimed = new Set<AccountingBalance>();
   const rows: TableRow[] = rules.map(rule => {
-    const filtered = balances.filter(rule.matcher);
+    const filtered = balances.filter(b => {
+      if (exclusive && claimed.has(b)) return false;
+      if (!rule.matcher(b)) return false;
+      if (exclusive) claimed.add(b);
+      return true;
+    });
     
     const atual = filtered.reduce((acc, b) => acc + b.saldoAtual, 0);
     const anterior = filtered.reduce((acc, b) => acc + b.saldoAnterior, 0);
@@ -452,7 +460,8 @@ export const generateReports = (result: ParseResult): TableData[] => {
   // --- TABELA 4 ---
   const table4Raw = calculateTableData(
     "Tabela 4: Créditos a Curto Prazo - composição",
-    balances,
+    // Restringe ao grupo 112/113 (Créditos CP): o filtro por nome atravessava grupos (ex.: empréstimos de LP em 121*).
+    balances.filter(b => b.conta.startsWith('112') || b.conta.startsWith('113')),
     [
       { label: "Empréstimos e financiamentos concedidos a receber", matcher: (b) => b.conta.startsWith('1124101') || b.conta.startsWith('112410201') || (b.nomeConta.toLowerCase().includes('empréstimo') && !b.nomeConta.toLowerCase().includes('ajuste')) },
       { label: "Ajuste para Perdas em Emprest. e Finaciament. Concedidos", matcher: (b) => b.conta.startsWith('1129104') || (b.nomeConta.toLowerCase().includes('ajuste') && b.nomeConta.toLowerCase().includes('emprest')) },
@@ -464,13 +473,15 @@ export const generateReports = (result: ParseResult): TableData[] => {
       { label: "Outros Créditos a Curto Prazo", matcher: (b) => (b.conta.startsWith('1138') && !b.conta.startsWith('1138148')) || (b.conta.startsWith('113') && !b.conta.startsWith('1131') && !b.conta.startsWith('1134') && !b.conta.startsWith('1135') && !b.conta.startsWith('1138') && !b.conta.startsWith('1139')) || b.nomeConta.toLowerCase().includes('outros créditos') }
     ],
     currentPeriod,
-    previousPeriod
+    previousPeriod,
+    true
   );
 
   // --- TABELA 5 --- (Estoques)
   const table5Detail = calculateTableData(
     "Tabela 5: Estoques - composição",
-    balances,
+    // Restringe ao grupo 115 (Estoques CP): o filtro por nome atraía contas do imobilizado (123*).
+    balances.filter(b => b.conta.startsWith('115')),
     [
       { label: "Materiais de Consumo", matcher: (b) => b.conta.startsWith("1156101") || b.nomeConta.toLowerCase().includes("consumo") },
       { label: "Estoques sobressalentes a reparar", matcher: (b) => b.conta.startsWith("1156104") || b.nomeConta.toLowerCase().includes("a reparar") },
@@ -480,7 +491,8 @@ export const generateReports = (result: ParseResult): TableData[] => {
       { label: "Demais", matcher: (b) => b.conta.startsWith("115") && !b.conta.startsWith("1156101") && !b.conta.startsWith("1156104") && !b.conta.startsWith("1156103") && !b.conta.startsWith("1156102") && !b.conta.startsWith("1158102") }
     ],
     currentPeriod,
-    previousPeriod
+    previousPeriod,
+    true
   );
 
   // --- TABELA 6 --- (Longo Prazo)
