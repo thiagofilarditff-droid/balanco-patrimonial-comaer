@@ -6,6 +6,8 @@ import {parseBalancoExcel} from '../src/services/excelParser';
 import {generateSampleExcelWorkbook} from '../src/services/excelGenerator';
 import * as XLSX from 'xlsx';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 assert.equal(extractReportPeriod([['Período','SET (FECHADO)']]),'SET (FECHADO)');
 assert.equal(extractReportPeriod([['Mês de referência: set/26']]),'SET/2026');
 assert.equal(extractReportPeriod([['Período:'],['SETEMBRO (FECHADO)']]),'SET (FECHADO)');
@@ -24,7 +26,7 @@ const bytes=generateSampleExcelWorkbook();const wb=XLSX.read(bytes,{type:'array'
 for(const [address,cell] of Object.entries(ws)){if(!address.startsWith('!')&&typeof cell.v==='string')cell.v=cell.v.replace(/MAR \(FECHADO\)/g,'SET (FECHADO)');}
 const out=XLSX.write(wb,{type:'buffer',bookType:'xlsx'});const parsed=await parseBalancoExcel(out.buffer.slice(out.byteOffset,out.byteOffset+out.byteLength));
 assert.equal(parsed.data.metadata.periodo,'SET (FECHADO)');
-fs.writeFileSync('/workspace/scratch/fa7afd90e57c/dashboard-test-setembro.xlsx',out);
+fs.writeFileSync(path.join(os.tmpdir(),'dashboard-test-setembro.xlsx'),out);
 console.log('OK: período setembro, rótulos separados, ausência de fallback, agrupamento LP e saldos zero.');
 
 assert.equal(displayReportPeriod('FEV/2024','2026'),'29/02/2024');
